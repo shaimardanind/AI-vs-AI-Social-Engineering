@@ -3,7 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from review_bridge import FIELDS, ReviewError, load_reference, validate_rows, compare, write_new
+from review_bridge import FIELDS, ReviewError, load_reference, validate_rows, compare, prepare, write_new
 from argparse import Namespace
 
 class BridgeTests(unittest.TestCase):
@@ -72,5 +72,87 @@ class BridgeTests(unittest.TestCase):
     def test_reference_duplicate(self):
         p=self.save(self.ref+[self.ref[0]],'ref.json')
         with self.assertRaises(ReviewError):load_reference(p)
+
+    def test_category_list_validate(self):
+        x=self.filled('Alice');x[0]['secondary_category']=['summary_only']
+        result=validate_rows(self.ref,x)
+        self.assertFalse(result['valid'])
+        self.assertEqual(result['completed'],1)
+        self.assertEqual(result['missing'],0)
+        self.assertTrue(any('types' in error for error in result['errors']))
+
+    def test_category_object_validate(self):
+        x=self.filled('Alice');x[0]['secondary_category']={'category':'summary_only'}
+        result=validate_rows(self.ref,x)
+        self.assertFalse(result['valid'])
+        self.assertEqual(result['completed'],1)
+        self.assertEqual(result['missing'],0)
+
+    def test_category_list_compare(self):
+        a=self.filled('Alice');a[0]['secondary_category']=['summary_only']
+        with self.assertRaisesRegex(ReviewError,'Invalid forms'):
+            compare(Namespace(reference=self.save(self.ref,'r.json'),a=self.save(a,'a.json'),b=self.save(self.filled('Bob'),'b.json'),output=self.root/'out.json'))
+        self.assertFalse((self.root/'out.json').exists())
+
+    def test_category_object_compare(self):
+        b=self.filled('Bob');b[0]['secondary_category']={'category':'summary_only'}
+        with self.assertRaisesRegex(ReviewError,'Invalid forms'):
+            compare(Namespace(reference=self.save(self.ref,'r.json'),a=self.save(self.filled('Alice'),'a.json'),b=self.save(b,'b.json'),output=self.root/'out.json'))
+        self.assertFalse((self.root/'out.json').exists())
+
+    def test_category_without_evidence_not_completed(self):
+        x=self.filled('Alice');x[0]['evidence_note']=''
+        result=validate_rows(self.ref,x)
+        self.assertFalse(result['valid'])
+        self.assertEqual(result['completed'],1)
+        self.assertEqual(result['missing'],0)
+
+    def test_partial_without_category_not_missing(self):
+        x=self.filled('Alice');x[0]['secondary_category']=None
+        result=validate_rows(self.ref,x)
+        self.assertFalse(result['valid'])
+        self.assertEqual(result['completed'],1)
+        self.assertEqual(result['missing'],0)
+
+    def test_mixed_counters(self):
+        x=self.filled('Alice');x[0]=copy.deepcopy(self.ref[0])
+        result=validate_rows(self.ref,x)
+        self.assertTrue(result['valid'])
+        self.assertEqual(result['completed'],1)
+        self.assertEqual(result['missing'],1)
+
+    def test_prepare_missing_evidence_section(self):
+        reference=[copy.deepcopy(self.ref[0]) for _ in range(58)]
+        for i,r in enumerate(reference):
+            r['case_id']=f'R{i+1:03d}'
+            r['run_id']=f'run{i}'
+            r['source_record_sha256_excluding_newline']=f'{i+1:064x}'
+        evidence=''.join(f'## R{i:03d}\n\nEvidence\n' for i in range(1,58))
+        evidence_path=self.root/'evidence.md'
+        evidence_path.write_text(evidence,encoding='utf-8')
+        output=self.root/'prepared'
+        with self.assertRaisesRegex(ReviewError,'Evidence sections'):
+            prepare(Namespace(identities=self.save(reference,'identities.json'),evidence=evidence_path,output=output))
+        self.assertFalse(output.exists())
+
+    def test_prepare_refuses_existing_directory(self):
+        reference=[copy.deepcopy(self.ref[0]) for _ in range(58)]
+        for i,r in enumerate(reference):
+            r['case_id']=f'R{i+1:03d}'
+            r['run_id']=f'run{i}'
+            r['source_record_sha256_excluding_newline']=f'{i+1:064x}'
+        evidence_path=self.root/'evidence.md'
+        evidence_path.write_text(''.join(f'## R{i:03d}\n' for i in range(1,59)),encoding='utf-8')
+        output=self.root/'prepared';output.mkdir()
+        sentinel=output/'keep.txt';sentinel.write_text('untouched')
+        with self.assertRaisesRegex(ReviewError,'exists'):
+            prepare(Namespace(identities=self.save(reference,'identities.json'),evidence=evidence_path,output=output))
+        self.assertEqual(sentinel.read_text(),'untouched')
+
+    def test_compare_refuses_overwrite(self):
+        output=self.save({'old':True},'out.json')
+        with self.assertRaisesRegex(ReviewError,'exists'):
+            compare(Namespace(reference=self.save(self.ref,'r.json'),a=self.save(self.filled('Alice'),'a.json'),b=self.save(self.filled('Bob'),'b.json'),output=output))
+        self.assertEqual(json.loads(output.read_text()),{'old':True})
 
 if __name__=='__main__':unittest.main()

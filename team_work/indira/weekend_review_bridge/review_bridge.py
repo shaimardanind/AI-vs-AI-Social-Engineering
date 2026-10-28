@@ -58,7 +58,7 @@ def load_reference(path, expected_count=None):
 
 def validate_rows(reference, rows):
     check(type(rows) is list,'Form must be a JSON array')
-    errors=[]; identities=set(); counts=Counter(); names=set()
+    errors=[]; identities=set(); counts=Counter(); names=set(); completed=0; missing=0
     ref={r['case_id']:r for r in reference}
     for i,r in enumerate(rows):
         label=f'form[{i}]'
@@ -74,23 +74,30 @@ def validate_rows(reference, rows):
         if not (type(values[0]) is str and type(values[1]) is str and (values[2] is None or type(values[2]) is str) and type(values[3]) is str):
             errors.append(f'{label}: invalid annotation field types');continue
         blank=values==['','',None,'']
-        if blank: continue
+        if blank:
+            missing+=1
+            continue
         if not all(type(x) is str and x.strip() for x in values):
             errors.append(f'{label}: partially completed annotation');continue
-        if r['secondary_category'] not in CATEGORIES: errors.append(f'{label}: unknown category')
+        if r['secondary_category'] not in CATEGORIES:
+            errors.append(f'{label}: unknown category')
+            continue
         try:
             stamp=r['annotated_at']
             check('T' in stamp,'timestamp requires ISO 8601 date/time')
             parsed=datetime.fromisoformat(stamp)
             check(parsed.tzinfo is not None and parsed.utcoffset() is not None,'timestamp missing timezone')
-        except (ValueError,TypeError,ReviewError): errors.append(f'{label}: invalid timestamp/timezone')
+        except (ValueError,TypeError,ReviewError):
+            errors.append(f'{label}: invalid timestamp/timezone')
+            continue
+        completed+=1
         names.add(r['annotator_identity'].strip().casefold())
         identities.add(r['annotator_identity'].strip())
     for case in ref:
         if counts[case]==0: errors.append(f'missing case_id {case}')
         if counts[case]>1: errors.append(f'duplicate case_id {case}')
     if len(names)>1: errors.append('multiple annotator identities within one form')
-    return {'valid':not errors,'total':len(reference),'completed':sum(type(r) is dict and r.get('secondary_category') in CATEGORIES and bool(r.get('annotator_identity')) for r in rows),'missing':sum(type(r) is dict and r.get('secondary_category') is None for r in rows),'identities':sorted(identities),'errors':errors}
+    return {'valid':not errors,'total':len(reference),'completed':completed,'missing':missing,'identities':sorted(identities),'errors':errors}
 
 def prepare(args):
     reference=load_reference(args.identities,58)
