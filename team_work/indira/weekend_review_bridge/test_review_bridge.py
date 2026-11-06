@@ -154,5 +154,26 @@ class BridgeTests(unittest.TestCase):
         with self.assertRaisesRegex(ReviewError,'exists'):
             compare(Namespace(reference=self.save(self.ref,'r.json'),a=self.save(self.filled('Alice'),'a.json'),b=self.save(self.filled('Bob'),'b.json'),output=output))
         self.assertEqual(json.loads(output.read_text()),{'old':True})
+    def test_invalid_run_id_not_completed(self):
+        x = self.filled('Alice')
+        x[0]['run_id'] = 'wrong_run'
+
+        result = validate_rows(self.ref, x)
+
+        self.assertFalse(result['valid'])
+        self.assertEqual(result['completed'], 1)
+        self.assertEqual(result['missing'], 0)
+        self.assertTrue(any('run_id' in e for e in result['errors']))
+
+    def test_invalid_config_hash_not_completed(self):
+        x = self.filled('Alice')
+        x[0]['config_hash'] = 'c' * 64
+
+        result = validate_rows(self.ref, x)
+
+        self.assertFalse(result['valid'])
+        self.assertEqual(result['completed'], 1)
+        self.assertEqual(result['missing'], 0)
+        self.assertTrue(any('config_hash' in e for e in result['errors']))
 
 if __name__=='__main__':unittest.main()

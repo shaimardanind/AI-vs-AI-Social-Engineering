@@ -1,6 +1,7 @@
 # HANDOFF — independent annotation review bridge
 
 ## Implemented
+
 - Offline Python standard-library CLI: `prepare`, `validate`, `compare`.
 - Preservation of reference identities, source hashes and policy fields; validation of field types, timestamps with timezones, allowed categories, duplicate case IDs and reviewer identities.
 - Correct counting: `completed` means a fully valid annotation; `missing` means an entirely blank annotation. Partially filled or wrongly typed annotations are validation errors, not completed/missing.
@@ -9,6 +10,7 @@
 - Synthetic tests only; no real participant assessments were created or modified.
 
 ## Environment and commands actually run
+
 - Windows PowerShell, Python **3.12.1**, project virtual environment (`.venv`).
 - New bridge tests (after the fixes):
   ```powershell
@@ -23,6 +25,7 @@
   Initial attempts failed because the legacy test directory was absent from the working tree, PowerShell's redirection produced incompatible file encoding, and fixture files were missing. After restoring the files and fixtures with UTF-8 encoding, all 15 tests passed.
 
 ## 58-case smoke check performed
+
 - Input files `ANNOTATIONS.json` and `EVIDENCE.md` were obtained for the 58-case check.
 - Preparation command:
   ```powershell
@@ -39,14 +42,29 @@
 - Empty A/B forms are intentionally not compared as completed human reviews.
 
 ## Personal verification and AI assistance
+
 - I personally ran the commands above in VS Code's PowerShell terminal and inspected their outputs, including the successful 30-test and separate 15-test runs.
 - I used ChatGPT to help write and revise the Python code, test cases, documentation and terminal instructions, and to diagnose setup/encoding/fixture errors. The commands and outputs listed above were executed and observed locally by me; I did not independently author all code without AI assistance.
 
 ## Limitations and scope
+
 - Different reviewer names do not prove independence; actual independent human annotation must be established outside this tool.
 - `compare` requires completed annotations from two different reviewers; no real human comparison has been claimed.
 - No adapter from context-only exports where `case_id` cannot be safely inferred.
 - No changes to real participant labels, benchmark data, unrelated code, API credentials or secrets. PR remains unmerged.
 
 ## Actual work time
+
 - Time was **not tracked**; no start/end time or duration is claimed.
+
+## Follow-up fixes — 2026-11-07
+
+- Fixed `validate_rows()` so records with invalid fixed identity fields are not counted as `completed`.
+- Added two regression tests for invalid `run_id` and `config_hash`.
+- Verified locally in Windows PowerShell:
+  `python -m unittest discover -s team_work/indira/weekend_review_bridge -p "test_review_bridge.py" -v`
+- Observed: `Ran 32 tests in 0.059s` — `OK`.
+- Updated `TEST_RESULTS.txt` to reflect the latest test run.
+- The previous 30 bridge tests and 15 legacy tests remain documented above; the legacy tests were not rerun on 2026-11-07.
+- AI assistance: ChatGPT helped identify the counter bug and draft the code changes, regression tests, and documentation. I applied the changes and ran the tests locally.
+- Additional work time for these fixes was not tracked.

@@ -68,8 +68,11 @@ def validate_rows(reference, rows):
         if type(case) is not str: errors.append(f'{label}: case_id must be string');continue
         counts[case]+=1
         if case not in ref: errors.append(f'{label}: unknown case_id {case}');continue
+        identity_valid = True
         for k in FIXED:
-            if type(r[k]) is not str or r[k]!=ref[case][k]: errors.append(f'{label}: changed/invalid {k}')
+            if type(r[k]) is not str or r[k] != ref[case][k]:
+                errors.append(f'{label}: changed/invalid {k}')
+                identity_valid = False
         values=[r[k] for k in ('annotator_identity','annotated_at','secondary_category','evidence_note')]
         if not (type(values[0]) is str and type(values[1]) is str and (values[2] is None or type(values[2]) is str) and type(values[3]) is str):
             errors.append(f'{label}: invalid annotation field types');continue
@@ -90,9 +93,10 @@ def validate_rows(reference, rows):
         except (ValueError,TypeError,ReviewError):
             errors.append(f'{label}: invalid timestamp/timezone')
             continue
-        completed+=1
-        names.add(r['annotator_identity'].strip().casefold())
-        identities.add(r['annotator_identity'].strip())
+        if identity_valid:
+            completed += 1
+            names.add(r['annotator_identity'].strip().casefold())
+            identities.add(r['annotator_identity'].strip())
     for case in ref:
         if counts[case]==0: errors.append(f'missing case_id {case}')
         if counts[case]>1: errors.append(f'duplicate case_id {case}')
